@@ -71,6 +71,24 @@ elseif ($nchBranch -eq "") {
 # Invoke-SqlCmd works natively.
 $bcContainerHelperConfig.usePwshForBc24 = $false
 
+# Workaround for BC 29 containers: Publish-BcContainerApp -sync runs
+# "Sync-NavApp ... -WarningAction Ignore" inside the container, which fails on BC 29 with
+# "The value Ignore is not supported for an ActionPreference variable".
+# Patch the installed module file and reload it. Remove once the upstream fix is released
+# (https://github.com/microsoft/navcontainerhelper, Fix Publish-BcContainerApp -sync failing on BC29 containers).
+$loadedModule = Get-Module -Name BcContainerHelper
+$publishAppScript = Join-Path $loadedModule.ModuleBase "AppHandling\Publish-NavContainerApp.ps1"
+if (Test-Path $publishAppScript) {
+    $publishAppContent = Get-Content -Path $publishAppScript -Raw
+    if ($publishAppContent -match 'Sync-NavApp .*-WarningAction Ignore') {
+        AddToStatus "Patching Publish-NavContainerApp.ps1: replace -WarningAction Ignore with SilentlyContinue (BC 29 workaround)"
+        $publishAppContent = $publishAppContent -replace '(Sync-NavApp .*)-WarningAction Ignore', '$1-WarningAction SilentlyContinue'
+        Set-Content -Path $publishAppScript -Value $publishAppContent -NoNewline -Encoding UTF8
+        Import-Module $loadedModule.Path -DisableNameChecking -Force
+        $bcContainerHelperConfig.usePwshForBc24 = $false
+    }
+}
+
 if (-not (Get-InstalledModule Az -ErrorAction SilentlyContinue)) {
     AddToStatus "Installing Az module"
     Install-Module Az -Force
