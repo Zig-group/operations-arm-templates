@@ -187,7 +187,7 @@ else {
 
             @"
 Write-Host 'Changing Server config to NavUserPassword to enable basic web services'
-Set-NAVServerConfiguration -ServerInstance `$serverInstance -KeyName 'ExcelAddInAzureActiveDirectoryClientId' -KeyValue '$ExcelAdAppId' -WarningAction Ignore
+Set-NAVServerConfiguration -ServerInstance `$serverInstance -KeyName 'ExcelAddInAzureActiveDirectoryClientId' -KeyValue '$ExcelAdAppId' -WarningAction SilentlyContinue
 "@ | Add-Content "c:\myfolder\SetupConfiguration.ps1"
 
             $settings = Get-Content -Path $settingsScript | Where-Object {
@@ -486,7 +486,7 @@ if ($auth -eq "AAD") {
         Publish-NavContainerApp -containerName $containerName -appFile "$appFile.zip" -skipVerification -install -sync
 
         $ScriptBlock = {
-            Set-NAVServerConfiguration -ServerInstance 'BC' -KeyName 'ClientServicesCredentialType' -KeyValue 'NavUserPassword' -WarningAction Ignore
+            Set-NAVServerConfiguration -ServerInstance 'BC' -KeyName 'ClientServicesCredentialType' -KeyValue 'NavUserPassword' -WarningAction SilentlyContinue
         }
         Invoke-ScriptInNavContainer -containerName $ContainerName -scriptblock $ScriptBlock
         Restart-NavContainer -containerName $containerName
