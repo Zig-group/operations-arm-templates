@@ -197,13 +197,36 @@ $scriptPath = $templateLink.SubString(0,$templateLink.LastIndexOf('/')+1)
 $downloadFolder = "C:\DOWNLOAD"
 New-Item -Path $downloadFolder -ItemType Directory -ErrorAction Ignore | Out-Null
 
+# PowerShell Gallery downloads fail intermittently (e.g. "Package 'PackageManagement' failed to download").
+# Retry instead of failing the whole deployment on a transient gallery error.
+function Invoke-WithRetry([scriptblock]$ScriptBlock, [string]$Description, [int]$MaxAttempts = 5, [int]$DelaySeconds = 30) {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            & $ScriptBlock
+            return
+        }
+        catch {
+            if ($attempt -ge $MaxAttempts) {
+                AddToStatus -color Red "$Description failed after $MaxAttempts attempts: $($_.Exception.Message)"
+                throw
+            }
+            AddToStatus -color Yellow "$Description failed (attempt $attempt of $MaxAttempts): $($_.Exception.Message) - retrying in $DelaySeconds seconds"
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+}
+
 if (!(Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction Ignore)) {
     AddToStatus "Installing NuGet Package Provider"
-    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force -WarningAction Ignore | Out-Null
+    Invoke-WithRetry -Description "NuGet Package Provider installation" -ScriptBlock {
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.208 -Force -WarningAction Ignore -ErrorAction Stop | Out-Null
+    }
 }
 if (!(Get-Module powershellget | Where-Object { $_.Version -ge [version]"2.2.5" })) {
     AddToStatus "Installing PowerShellGet 2.2.5"
-    Install-Module powershellget -RequiredVersion 2.2.5 -force
+    Invoke-WithRetry -Description "PowerShellGet 2.2.5 installation" -ScriptBlock {
+        Install-Module powershellget -RequiredVersion 2.2.5 -Force -ErrorAction Stop
+    }
     Import-Module powershellget -RequiredVersion 2.2.5
 }
 
